@@ -1,19 +1,10 @@
 // -------------------------------------------------------
 // Legal Red Line — Data Service Layer
 // -------------------------------------------------------
-// Two free, no-key data sources:
-//   1. eCFR Versioner API  → Code of Federal Regulations
-//      Point-in-time history back to January 2017
-//   2. GovInfo.gov Bulk XML → US Code (annual editions)
-// -------------------------------------------------------
-
 const ECFR_BASE = 'https://www.ecfr.gov/api/versioner/v1'
-const GOVINFO_BASE = 'https://api.govinfo.gov'
-const GOVINFO_KEY = 'DEMO_KEY' // free tier: 1000 req/hour
 
-// ── CFR ──────────────────────────────────────────────
+// ── CFR Structure & Navigation ───────────────────────
 
-/** List all 50 CFR titles with metadata */
 export async function getCFRTitles() {
   const res = await fetch(`${ECFR_BASE}/titles`)
   if (!res.ok) throw new Error(`eCFR titles: ${res.status}`)
@@ -21,10 +12,6 @@ export async function getCFRTitles() {
   return data.titles
 }
 
-/**
- * Get all change-date versions for a CFR title.
- * Returns array of { date, identifier, name, ... }
- */
 export async function getCFRVersions(titleNum) {
   const res = await fetch(`${ECFR_BASE}/versions/title-${titleNum}`)
   if (!res.ok) throw new Error(`eCFR versions: ${res.status}`)
@@ -32,97 +19,98 @@ export async function getCFRVersions(titleNum) {
   return data.content_versions ?? []
 }
 
-/**
- * Fetch full XML text of a CFR title on a specific date.
- * date format: 'YYYY-MM-DD'
- */
-export async function getCFRTitleOnDate(titleNum, date) {
-  const res = await fetch(
-    `${ECFR_BASE}/full/${date}/title-${titleNum}.xml`
-  )
-  if (!res.ok) throw new Error(`eCFR full text: ${res.status}`)
-  return res.text()
-}
-
-/**
- * Fetch a specific section of CFR on a given date.
- * e.g. title=1, part=1, section=1 on '2023-01-01'
- */
-export async function getCFRSection(titleNum, part, section, date) {
-  const url = `${ECFR_BASE}/full/${date}/title-${titleNum}/chapter-I/part-${part}/section-${part}.${section}`
-  const res = await fetch(url)
-  if (!res.ok) throw new Error(`eCFR section: ${res.status}`)
-  return res.text()
-}
-
-/**
- * Get the table of contents (structure) for a CFR title on a date.
- */
+// Full hierarchical tree for a title on a date
 export async function getCFRStructure(titleNum, date) {
-  const res = await fetch(
-    `${ECFR_BASE}/structure/${date}/title-${titleNum}.json`
-  )
+  const res = await fetch(`${ECFR_BASE}/structure/${date}/title-${titleNum}.json`)
   if (!res.ok) throw new Error(`eCFR structure: ${res.status}`)
   return res.json()
 }
 
-// ── US Code ──────────────────────────────────────────
-
-/**
- * List available US Code annual editions (years) from GovInfo.
- */
-export async function getUSCodeEditions() {
-  const res = await fetch(
-    `${GOVINFO_BASE}/collections/USCODE/2000-01-01?pageSize=100&api_key=${GOVINFO_KEY}`
-  )
-  if (!res.ok) throw new Error(`GovInfo USC editions: ${res.status}`)
-  const data = await res.json()
-  return data.packages ?? []
+// Fetch XML for a specific section (part + section identifier)
+export async function getCFRSectionXML(titleNum, part, sectionId, date) {
+  // sectionId is like "1.1", "301.6011(a)-1", etc.
+  const params = new URLSearchParams({ part, section: sectionId })
+  const res = await fetch(`${ECFR_BASE}/full/${date}/title-${titleNum}.xml?${params}`)
+  if (!res.ok) throw new Error(`eCFR section XML: ${res.status}`)
+  return res.text()
 }
 
-/**
- * Get USC package details for a specific year + title.
- * packageId format: 'USCODE-YYYY-titleN'
- */
-export async function getUSCodePackage(packageId) {
-  const res = await fetch(
-    `${GOVINFO_BASE}/packages/${packageId}/summary?api_key=${GOVINFO_KEY}`
-  )
-  if (!res.ok) throw new Error(`GovInfo package: ${res.status}`)
-  return res.json()
+// Fetch XML for an entire part (when no section selected)
+export async function getCFRPartXML(titleNum, part, date) {
+  const params = new URLSearchParams({ part })
+  const res = await fetch(`${ECFR_BASE}/full/${date}/title-${titleNum}.xml?${params}`)
+  if (!res.ok) throw new Error(`eCFR part XML: ${res.status}`)
+  return res.text()
 }
 
-// ── Utilities ────────────────────────────────────────
+// ── Utilities ─────────────────────────────────────────
 
-/**
- * Strip XML tags and normalize whitespace to get plain text
- * suitable for diffing.
- */
+// Convert CFR XML to structured paragraphs with preserved headings
+export function parseXMLToStructured(xml) {
+  const parser = new DOMParser()
+  const doc = parser.parseFromString(xml, 'text/xml')
+
+  const blocks = []
+
+  function walk(node, depth = 0) {
+    if (node.nodeType === Node.TEXT_NODE) {
+      const text = node.textContent.trim()
+      if (text) blocks.push({ type: 'text', text, depth })
+      return
+    }
+    const tag = node.tagName?.toLowerCase()
+    if (!tag) return
+
+    if (['head', 'subject', 'title', 'sectno'].includes(tag)) {
+      const text = node.textContent.trim()
+      if (text) blocks.push({ type: 'heading', tag, text, depth })
+    } else if (tag === 'p') {
+      const text = node.textContent.trim()
+      if (text) blocks.push({ type: 'para', text, depth })
+    } else if (tag === 'section') {
+      const id = node.getAttribute('id') || ''
+      blocks.push({ type: 'section-start', id, depth })
+      for (const child of node.childNodes) walk(child, depth + 1)
+      blocks.push({ type: 'section-end', depth })
+    } else {
+      for (const child of node.childNodes) walk(child, depth)
+    }
+  }
+
+  walk(doc.documentElement)
+  return blocks
+}
+
+// Plain text for diffing
 export function xmlToText(xml) {
-  // Remove XML declarations and tags, decode basic entities
   return xml
     .replace(/<\?xml[^>]*>/g, '')
     .replace(/<[^>]+>/g, ' ')
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&nbsp;/g, ' ')
-    .replace(/\s{2,}/g, '\n')
-    .trim()
+    .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+    .replace(/&nbsp;/g, ' ').replace(/\s{2,}/g, '\n').trim()
 }
 
-/**
- * Given a list of version dates, return just the ones
- * that represent year-over-year snapshots (one per year,
- * picking the last version of each calendar year).
- */
+// Flatten structure tree into a list of all sections (for prev/next)
+export function flattenSections(node, acc = []) {
+  if (!node) return acc
+  if (node.type === 'section') acc.push(node)
+  for (const child of node.children || []) flattenSections(child, acc)
+  return acc
+}
+
+// Yearly snapshots for date picker
 export function getYearlySnapshots(versions) {
   const byYear = {}
   for (const v of versions) {
     const year = v.date?.slice(0, 4)
-    if (year) byYear[year] = v // last one wins → latest in year
+    if (year) byYear[year] = v
   }
-  return Object.entries(byYear)
-    .sort(([a], [b]) => a - b)
-    .map(([year, v]) => ({ year, ...v }))
+  return Object.entries(byYear).sort(([a], [b]) => a - b).map(([year, v]) => ({ year, ...v }))
+}
+
+// Parse section identifier to extract part number
+export function partFromSection(sectionIdentifier) {
+  // e.g. "1.501(r)-1" → "1", "301.6011(a)-1" → "301", "1.1" → "1"
+  const match = sectionIdentifier?.match(/^(\d+)\./)
+  return match ? match[1] : null
 }
