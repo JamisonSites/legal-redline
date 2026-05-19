@@ -120,26 +120,52 @@ export default function App() {
     setSelectedTitle({ num, name }); setActiveSection(null); setActiveGroup(null)
     setView('title')
     try {
-      // Use most recent edition's package (we'll get editions inside the viewer too,
-      // but here we just need the section list for navigation)
-      // Try current year down until we find a package
+      // First, ask the collections endpoint for real package IDs for this title
+      let packageId = ''
+      let granules  = []
+      let total     = 0
+
+      const editions = await getUSCEditions(num)
+      console.log('[USC] editions found for title', num, ':', editions)
+
+      // Build candidate list: real editions (newest first) + year-guesses as fallback
       const currentYear = new Date().getFullYear()
-      let granules = [], total = 0, packageId = ''
-      for (let y = currentYear; y >= 2015; y--) {
-        packageId = `USCODE-${y}-title${num}`
-        try {
-          const result = await getUSCGranules(packageId)
-          granules = result.granules
-          total    = result.total
-          if (granules.length > 0) break
-        } catch { /* try previous year */ }
+      const guessYears  = Array.from({ length: currentYear - 2012 + 1 }, (_, i) => currentYear - i)
+      const candidateIds = [
+        ...editions.map(e => e.packageId).reverse(),   // real ones, newest first
+        ...guessYears.map(y => `USCODE-${y}-title${num}`),
+      ]
+      // Deduplicate
+      const seen = new Set()
+      const uniqueIds = candidateIds.filter(id => { if (seen.has(id)) return false; seen.add(id); return true })
+
+      for (const pkgId of uniqueIds) {
+        console.log('[USC] trying package:', pkgId)
+        const result = await getUSCGranules(pkgId)
+        if (result.granules.length > 0) {
+          packageId = pkgId
+          granules  = result.granules
+          total     = result.total
+          console.log('[USC] success with', pkgId, '—', granules.length, 'granules')
+          break
+        }
       }
-      if (granules.length === 0) throw new Error('No USC sections found via GovInfo. The API may be temporarily unavailable.')
+
+      if (granules.length === 0) {
+        throw new Error(
+          `No sections found for USC Title ${num}. ` +
+          `Tried ${uniqueIds.length} package IDs — check the browser console (F12) for details.`
+        )
+      }
+
       setUscTotal(total)
       const tree = buildUSCTree(num, name, granules)
       setStructure(tree)
       setSections(flattenSections(tree))
-    } catch (e) { setError(e.message) }
+    } catch (e) {
+      console.error('[USC] handleSelectUSCTitle failed:', e)
+      setError(e.message)
+    }
     finally { setLoading(false) }
   }
 

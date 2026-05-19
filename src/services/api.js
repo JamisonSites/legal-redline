@@ -104,28 +104,36 @@ export const USC_TITLES = [
   { number: 54, name: 'National Park Service and Related Programs' },
 ]
 
-// Module-level cache so we fetch the collection list only once per session
+// Module-level cache — collections fetch happens once per session
 let _uscPackageCache = null
 
 async function _fetchUSCPackages() {
   if (_uscPackageCache) return _uscPackageCache
-  // GovInfo returns packages sorted newest-first; fetch up to 2 000 to cover all titles/years
-  const pages = await Promise.all([
-    fetch(`${GOVINFO_BASE}/collections/USCODE?pageSize=1000&offsetMark=*&api_key=${GOVINFO_KEY}`).then(r => r.json()),
-    fetch(`${GOVINFO_BASE}/collections/USCODE?pageSize=1000&offset=1000&api_key=${GOVINFO_KEY}`).then(r => r.json()).catch(() => ({ packages: [] })),
-  ])
-  _uscPackageCache = [...(pages[0].packages || []), ...(pages[1].packages || [])]
-  return _uscPackageCache
+  // Page 1 — no offsetMark needed for first page (GovInfo defaults to start)
+  const r1   = await fetch(`${GOVINFO_BASE}/collections/USCODE?pageSize=1000&api_key=${GOVINFO_KEY}`)
+  const d1   = await r1.json()
+  const pkgs = [...(d1.packages || [])]
+  // Page 2 using the cursor GovInfo returns, if present
+  if (d1.nextPage) {
+    try {
+      const r2 = await fetch(`${d1.nextPage}&api_key=${GOVINFO_KEY}`)
+      const d2 = await r2.json()
+      pkgs.push(...(d2.packages || []))
+    } catch { /* best-effort */ }
+  }
+  console.log('[USC] collection packages fetched:', pkgs.length, pkgs[0])
+  _uscPackageCache = pkgs
+  return pkgs
 }
 
-// Get available annual editions for a USC title number
-// Returns [{year, packageId, date}] sorted oldest→newest
+// Get available annual editions for a USC title.
+// Returns [{year, packageId, date}] sorted oldest→newest.
 export async function getUSCEditions(titleNum) {
   try {
     const all = await _fetchUSCPackages()
-    // Match: USCODE-2022-title26 (no zero-padding on title number)
-    const re  = new RegExp(`^USCODE-(\\d{4})-title0*${titleNum}$`, 'i')
-    const matched = all
+    // Match USCODE-2022-title26 (no zero-padding) or USCODE-2022-title026 (3-digit padding)
+    const re = new RegExp(`^USCODE-(\\d{4})-title0*${titleNum}$`, 'i')
+    return all
       .filter(p => re.test(p.packageId))
       .map(p => ({
         year:      parseInt(p.packageId.match(/(\d{4})/)?.[1] || '0'),
@@ -134,9 +142,8 @@ export async function getUSCEditions(titleNum) {
       }))
       .filter(p => p.year > 0)
       .sort((a, b) => a.year - b.year)
-    return matched
-  } catch {
-    // Fallback: return empty (caller shows error)
+  } catch (e) {
+    console.error('[USC] getUSCEditions failed:', e)
     return []
   }
 }
@@ -168,20 +175,51 @@ export function buildUSCTree(titleNum, titleName, granules) {
   }
 }
 
-// Fetch flat granule list for a GovInfo USCODE package (max 500 sections)
+// Fetch flat granule list for a GovInfo USCODE package.
+// Tries the /granules endpoint first; if that comes back empty, falls
+// back to the GovInfo search API which indexes section-level content.
 export async function getUSCGranules(packageId) {
-  const res = await fetch(
-    `${GOVINFO_BASE}/packages/${packageId}/granules?pageSize=500&offsetMark=*&api_key=${GOVINFO_KEY}`
-  )
-  if (!res.ok) throw new Error(`GovInfo granules: ${res.status}`)
-  const data = await res.json()
-  // Filter to only section-level granules (not chapter/appendix headers)
-  const granules = (data.granules || []).filter(g => {
-    const cls = (g.granuleClass || g.docClass || '').toUpperCase()
-    // Include anything that looks like a section; exclude pure chapter nodes
-    return !cls || cls === 'SECTION' || cls === 'USC' || g.granuleId?.includes('-sec')
-  })
-  return { granules, total: data.count ?? granules.length }
+  // ── Strategy 1: /granules endpoint (no offsetMark — defaults to first page) ──
+  const granulesUrl = `${GOVINFO_BASE}/packages/${packageId}/granules?pageSize=500&api_key=${GOVINFO_KEY}`
+  console.log('[USC] fetching granules:', granulesUrl)
+  const res = await fetch(granulesUrl)
+  console.log('[USC] granules response status:', res.status)
+  if (res.ok) {
+    const data = await res.json()
+    console.log('[USC] granules response keys:', Object.keys(data), 'count:', data.count)
+    // Accept all granule types — no filter (different USC editions use different class names)
+    const granules = data.granules || data.content || []
+    if (granules.length > 0) {
+      console.log('[USC] first granule sample:', granules[0])
+      return { granules, total: data.count ?? granules.length }
+    }
+    console.warn('[USC] /granules returned 0 items — trying search fallback')
+  } else {
+    console.warn('[USC] /granules HTTP', res.status, '— trying search fallback')
+  }
+
+  // ── Strategy 2: GovInfo search API (indexes by packageId) ──
+  const searchUrl = `${GOVINFO_BASE}/search?query=packageId%3A${encodeURIComponent(packageId)}&pageSize=500&resultLevel=default&api_key=${GOVINFO_KEY}`
+  console.log('[USC] trying search fallback:', searchUrl)
+  const sr = await fetch(searchUrl)
+  if (sr.ok) {
+    const sd = await sr.json()
+    console.log('[USC] search response:', sd.count, 'results, keys:', Object.keys(sd))
+    const results = sd.results || []
+    if (results.length > 0) {
+      // Map search results into granule-like shape
+      const granules = results.map(r => ({
+        granuleId: r.packageId || r.id,
+        title:     r.title || '',
+        granuleClass: 'SECTION',
+      }))
+      return { granules, total: sd.count ?? granules.length }
+    }
+  }
+
+  // ── Strategy 3: Give up — return empty, caller shows message ──
+  console.error('[USC] all strategies exhausted for', packageId)
+  return { granules: [], total: 0 }
 }
 
 // Fetch HTML content for a specific USC section granule
