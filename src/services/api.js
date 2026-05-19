@@ -3,7 +3,7 @@
 // -------------------------------------------------------
 const ECFR_BASE    = 'https://www.ecfr.gov/api/versioner/v1'
 const GOVINFO_BASE = 'https://api.govinfo.gov'
-const GOVINFO_KEY  = 'DEMO_KEY'  // free — 1 000 req/hr; swap in your own key for production
+const GOVINFO_KEY  = 'D2ndyZTXqQlbpMWaAeDSwDJD6WD7wKQqYvekZNiY'
 
 // ── CFR Structure & Navigation ───────────────────────
 
