@@ -58,6 +58,30 @@ body { font-family: var(--font); background: var(--bg); color: var(--ink); line-
 .main-content h2 { font-size: 1.2rem; margin-bottom: .4rem; }
 .subtitle { color: #666; font-size: .9rem; font-family: var(--sans); margin-bottom: 1.5rem; }
 
+/* ── Corpus tabs (CFR / USC) ─────────────────────────── */
+.corpus-tabs {
+  display: flex;
+  gap: 0;
+  margin-bottom: 1.75rem;
+  border-bottom: 2px solid var(--border);
+}
+.corpus-tab {
+  background: none;
+  border: none;
+  border-bottom: 3px solid transparent;
+  margin-bottom: -2px;
+  padding: .6rem 1.4rem;
+  font-family: var(--sans);
+  font-size: .88rem;
+  font-weight: 600;
+  color: #777;
+  cursor: pointer;
+  transition: color .15s, border-color .15s;
+  letter-spacing: .01em;
+}
+.corpus-tab:hover { color: var(--accent); }
+.corpus-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
 .title-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px,1fr)); gap: .6rem; margin-top: 1rem; }
 .title-card { background: #fff; border: 1px solid var(--border); border-radius: 5px; padding: .7rem 1rem; cursor: pointer; transition: border-color .15s; }
 .title-card:hover { border-color: var(--accent); }
@@ -418,6 +442,39 @@ del.rl-del { text-decoration: line-through; color: var(--red); background: rgba(
 .nav-suggestion-item:hover { background: var(--bg2); }
 .ns-id   { font-weight: 700; color: var(--accent); }
 .ns-desc { color: #666; font-size: .73rem; }
+
+/* ── USC badge & card accents ───────────────────────── */
+.usc-card .num { color: #1a4a8b; }
+.usc-card:hover { border-color: #1a4a8b; }
+.usc-badge { color: #1a4a8b !important; }
+.usc-notice {
+  font-family: var(--sans);
+  font-size: .8rem;
+  color: #888;
+  background: var(--bg2);
+  border-radius: 4px;
+  padding: .5rem .75rem;
+  margin-top: .75rem;
+  margin-bottom: .75rem;
+}
+
+/* ── USC HTML content display ───────────────────────── */
+.usc-content {
+  font-size: .93rem;
+  line-height: 1.85;
+}
+.usc-content h1, .usc-content h2, .usc-content h3 {
+  font-size: 1rem;
+  font-weight: 700;
+  margin: .9rem 0 .4rem;
+}
+.usc-content p { margin-bottom: .6rem; }
+.usc-content table { border-collapse: collapse; width: 100%; margin: .75rem 0; font-size: .85rem; }
+.usc-content td, .usc-content th { border: 1px solid var(--border); padding: .35rem .6rem; }
+.usc-content th { background: var(--bg2); font-weight: 600; }
+/* Hide GovInfo navigation chrome that leaks through */
+.usc-content nav, .usc-content header, .usc-content footer,
+.usc-content .nav-container, .usc-content .breadcrumb { display: none !important; }
 
 /* ── Scrollbar ──────────────────────────────────────── */
 .nav-tree-body::-webkit-scrollbar, .section-viewer::-webkit-scrollbar { width: 5px; }
