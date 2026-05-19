@@ -122,63 +122,109 @@ async function _fetchUSCPackages() {
   // Use 1994-01-01 to capture all USCODE editions ever published electronically.
   const url = `${GOVINFO_BASE}/collections/USCODE/1994-01-01T00:00:00Z/?offsetMark=*&pageSize=1000&api_key=${GOVINFO_KEY}`
   console.log('[USC] fetching collections:', url)
-  const r1   = await fetch(url)
-  console.log('[USC] collections status:', r1.status)
-  const d1   = await r1.json()
-  console.log('[USC] collections keys:', Object.keys(d1), 'count:', d1.count)
-  const pkgs = [...(d1.packages || [])]
-  // Page 2 using the cursor GovInfo returns, if present
-  if (d1.nextPage) {
-    try {
-      // nextPage already contains the full URL with offsetMark; just add the api_key
-      const nextUrl = d1.nextPage.includes('api_key') ? d1.nextPage : `${d1.nextPage}&api_key=${GOVINFO_KEY}`
-      const r2 = await fetch(nextUrl)
-      const d2 = await r2.json()
-      pkgs.push(...(d2.packages || []))
-    } catch { /* best-effort */ }
+  try {
+    const r1   = await fetch(url)
+    console.log('[USC] collections status:', r1.status)
+    if (!r1.ok) throw new Error(`HTTP ${r1.status}`)
+    const d1   = await r1.json()
+    console.log('[USC] collections keys:', Object.keys(d1), 'count:', d1.count)
+    const pkgs = [...(d1.packages || [])]
+    // Page 2 — nextPage points to api.govinfo.gov; route it through our proxy
+    if (d1.nextPage) {
+      try {
+        const np     = new URL(d1.nextPage)
+        const npPath = np.pathname + np.search
+        const nextUrl = `${GOVINFO_BASE}${npPath}${npPath.includes('api_key') ? '' : `&api_key=${GOVINFO_KEY}`}`
+        const r2 = await fetch(nextUrl)
+        const d2 = await r2.json()
+        pkgs.push(...(d2.packages || []))
+      } catch { /* best-effort */ }
+    }
+    console.log('[USC] collection packages fetched:', pkgs.length, pkgs[0])
+    _uscPackageCache = pkgs
+    return pkgs
+  } catch (e) {
+    console.warn('[USC] collections fetch failed:', e.message)
+    _uscPackageCache = []  // cache empty so we don't keep retrying
+    return []
   }
-  console.log('[USC] collection packages fetched:', pkgs.length, pkgs[0])
-  _uscPackageCache = pkgs
-  return pkgs
 }
 
 // Get available annual editions for a USC title.
 // Returns [{year, packageId, date}] sorted oldest→newest.
+// Strategy 1: collections endpoint (fast, one call for all titles)
+// Strategy 2: parallel package/summary probes for known years (fallback)
 export async function getUSCEditions(titleNum) {
+  // ── Strategy 1: collections ────────────────────────────
   try {
     const all = await _fetchUSCPackages()
-    // Match USCODE-2022-title26 (no zero-padding) or USCODE-2022-title026 (3-digit padding)
-    const re = new RegExp(`^USCODE-(\\d{4})-title0*${titleNum}$`, 'i')
-    return all
-      .filter(p => re.test(p.packageId))
-      .map(p => ({
-        year:      parseInt(p.packageId.match(/(\d{4})/)?.[1] || '0'),
-        packageId: p.packageId,
-        date:      p.lastModified || `${p.packageId.match(/(\d{4})/)?.[1]}-01-01`,
-      }))
-      .filter(p => p.year > 0)
-      .sort((a, b) => a.year - b.year)
+    if (all.length > 0) {
+      const re = new RegExp(`^USCODE-(\\d{4})-title0*${titleNum}$`, 'i')
+      const eds = all
+        .filter(p => re.test(p.packageId))
+        .map(p => ({
+          year:      parseInt(p.packageId.match(/(\d{4})/)?.[1] || '0'),
+          packageId: p.packageId,
+          date:      p.lastModified || `${p.packageId.match(/(\d{4})/)?.[1]}-01-01`,
+        }))
+        .filter(p => p.year > 0)
+        .sort((a, b) => a.year - b.year)
+      if (eds.length > 0) {
+        console.log('[USC] editions from collections:', eds.map(e => e.year))
+        return eds
+      }
+    }
   } catch (e) {
-    console.error('[USC] getUSCEditions failed:', e)
-    return []
+    console.warn('[USC] editions via collections failed:', e.message)
   }
+
+  // ── Strategy 2: parallel package-summary probes ────────
+  console.log('[USC] falling back to year-probe for title', titleNum)
+  const currentYear = new Date().getFullYear()
+  const years = Array.from({ length: currentYear - 2009 }, (_, i) => 2010 + i)
+
+  const results = await Promise.allSettled(
+    years.map(async (year) => {
+      try {
+        const pkgId = `USCODE-${year}-title${titleNum}`
+        const res = await fetch(`${GOVINFO_BASE}/packages/${pkgId}/summary?api_key=${GOVINFO_KEY}`)
+        if (!res.ok) return null
+        const data = await res.json()
+        return {
+          year,
+          packageId: pkgId,
+          date: data.dateIssued || data.lastModified || `${year}-01-01`,
+        }
+      } catch { return null }
+    })
+  )
+
+  const editions = results
+    .filter(r => r.status === 'fulfilled' && r.value !== null)
+    .map(r => r.value)
+    .sort((a, b) => a.year - b.year)
+
+  console.log('[USC] year-probe found', editions.length, 'editions:', editions.map(e => e.year))
+  return editions
 }
 
 // Build a synthetic tree from GovInfo granule list (for NavTree)
 // Granule title examples: "§ 1. Tax imposed", "Section 501", "Sec. 7701."
 export function buildUSCTree(titleNum, titleName, granules) {
   const sections = granules.map(g => {
-    // Extract section number from granuleId: USCODE-2022-title26-sec501 → "501"
+    // Extract section number from granuleId:
+    //   USCODE-2022-title26-subtitleA-chap1-subchapA-sec501 → "501"
+    //   USCODE-2022-title26-sec6045 → "6045"
     const secMatch = g.granuleId?.match(/-sec([a-zA-Z0-9]+)$/)
     const secNum   = secMatch ? secMatch[1] : (g.granuleId || '')
 
     return {
-      type:            'section',
-      identifier:      g.granuleId,     // used as activePath key
-      label:           secNum,          // "501"
+      type:              'section',
+      identifier:        secNum,          // "6045" — used for nav, activePath, search
+      label:             secNum,          // same
       label_description: g.title || `§ ${secNum}`,
-      granuleId:       g.granuleId,     // USC-specific fetch key
-      children:        [],
+      granuleId:         g.granuleId,     // full GovInfo path used only for API calls
+      children:          [],
     }
   })
 

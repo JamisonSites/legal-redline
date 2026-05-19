@@ -458,23 +458,73 @@ del.rl-del { text-decoration: line-through; color: var(--red); background: rgba(
   margin-bottom: .75rem;
 }
 
-/* ── USC HTML content display ───────────────────────── */
+/* ── USC HTML content display (Cornell-LII-inspired) ─── */
 .usc-content {
-  font-size: .93rem;
-  line-height: 1.85;
+  font-size: .96rem;
+  line-height: 1.95;
+  max-width: 820px;
+  color: var(--ink);
 }
-.usc-content h1, .usc-content h2, .usc-content h3 {
-  font-size: 1rem;
-  font-weight: 700;
-  margin: .9rem 0 .4rem;
-}
-.usc-content p { margin-bottom: .6rem; }
+
+/* Section head — bold heading line like "§ 6045. Returns of brokers" */
+.usc-content .section-head,
+.usc-content .section-head-1,
+.usc-content .heading,
+.usc-content h2.heading { font-size: 1rem; font-weight: 700; margin: 1.1rem 0 .4rem; }
+
+/* Paragraph / clause labels like (a)(1)(A) */
+.usc-content .clause-txt,
+.usc-content .subclause-txt { display: inline; }
+
+/* GovInfo indentation classes */
+.usc-content .indent,
+.usc-content .indent-0  { margin-left: 0; }
+.usc-content .indent-1,
+.usc-content [class*="indent-1"]  { margin-left: 1.5em; }
+.usc-content .indent-2,
+.usc-content [class*="indent-2"]  { margin-left: 3em; }
+.usc-content .indent-3,
+.usc-content [class*="indent-3"]  { margin-left: 4.5em; }
+.usc-content .indent-4,
+.usc-content [class*="indent-4"]  { margin-left: 6em; }
+
+/* Legacy GovInfo in-N indentation classes */
+.usc-content .in-1 { margin-left: 1.5em; }
+.usc-content .in-2 { margin-left: 3em; }
+.usc-content .in-3 { margin-left: 4.5em; }
+.usc-content .in-4 { margin-left: 6em; }
+
+/* Continuation paragraphs that GovInfo marks with a dash class */
+.usc-content .continuation { margin-left: 0; }
+
+/* Notes at the end of a section (historical notes, effective date, etc.) */
+.usc-content .note-body,
+.usc-content .note-head { font-size: .88rem; color: #555; margin-top: .5rem; }
+.usc-content .note-head { font-weight: 600; font-size: .9rem; color: var(--ink); }
+
+/* Tables */
 .usc-content table { border-collapse: collapse; width: 100%; margin: .75rem 0; font-size: .85rem; }
 .usc-content td, .usc-content th { border: 1px solid var(--border); padding: .35rem .6rem; }
 .usc-content th { background: var(--bg2); font-weight: 600; }
-/* Hide GovInfo navigation chrome that leaks through */
+
+/* Paragraph spacing */
+.usc-content p { margin-bottom: .45rem; }
+.usc-content h1, .usc-content h2, .usc-content h3 { font-size: 1rem; font-weight: 700; margin: .9rem 0 .4rem; }
+
+/* ── Hide ALL GovInfo navigation chrome aggressively ── */
 .usc-content nav, .usc-content header, .usc-content footer,
-.usc-content .nav-container, .usc-content .breadcrumb { display: none !important; }
+.usc-content .nav-container, .usc-content .breadcrumb,
+.usc-content .breadcrumb-container, .usc-content #breadcrumb,
+.usc-content .govinfo-nav, .usc-content .global-nav,
+.usc-content .top-bar, .usc-content .bottom-bar,
+.usc-content .pagination, .usc-content .pager,
+.usc-content .tools, .usc-content .share-tools,
+.usc-content .metadata, .usc-content .document-metadata,
+.usc-content #navigation, .usc-content #header,
+.usc-content [class*="nav-"], .usc-content [id*="nav-"],
+.usc-content [class*="banner"], .usc-content [class*="toolbar"],
+.usc-content [class*="utility-bar"],
+.usc-content script, .usc-content style { display: none !important; }
 
 /* ── Scrollbar ──────────────────────────────────────── */
 .nav-tree-body::-webkit-scrollbar, .section-viewer::-webkit-scrollbar { width: 5px; }

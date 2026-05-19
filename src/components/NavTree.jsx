@@ -62,7 +62,7 @@ function TreeNode({ node, titleNum, activePath, onSelect, depth = 0 }) {
 }
 
 // ── NavTree with jump-to-section search ─────────────────
-export default function NavTree({ structure, titleNum, activePath, onSelect }) {
+export default function NavTree({ structure, titleNum, activePath, onSelect, corpus = 'cfr' }) {
   const [search, setSearch] = useState('')
   const [collapsed, setCollapsed] = useState(false)
   const [suggestions, setSuggestions] = useState([])
@@ -80,7 +80,10 @@ export default function NavTree({ structure, titleNum, activePath, onSelect }) {
     const matched = allSections.filter(s => {
       const id   = (s.identifier || s.label || '').toLowerCase()
       const desc = (s.label_description || '').toLowerCase()
-      return id.startsWith(q) || id.includes(q) || desc.includes(q)
+      // Also check the full granuleId for USC (contains full path with section number)
+      const gid  = (s.granuleId || '').toLowerCase()
+      return id.startsWith(q) || id === q || id.includes(q)
+          || desc.includes(q) || gid.includes(`-sec${q}`) || gid.includes(q)
     }).slice(0, 8) // cap at 8 suggestions
     setSuggestions(matched)
   }, [search, allSections])
@@ -124,7 +127,7 @@ export default function NavTree({ structure, titleNum, activePath, onSelect }) {
         <input
           ref={inputRef}
           type="text"
-          placeholder="Jump to section… (e.g. 1.501)"
+          placeholder={corpus === 'usc' ? 'Jump to § number… (e.g. 6045)' : 'Jump to section… (e.g. 1.501)'}
           value={search}
           onChange={e => { setSearch(e.target.value); setShowSuggestions(true) }}
           onFocus={() => setShowSuggestions(true)}

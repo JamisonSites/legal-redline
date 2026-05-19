@@ -271,6 +271,7 @@ export default function App() {
               titleNum={selectedTitle?.num}
               activePath={activeSection?.identifier || activeSection?.label}
               onSelect={handleSelectSection}
+              corpus={corpus}
             />
 
             <main className="section-area">
