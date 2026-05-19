@@ -10,7 +10,7 @@ const ECFR_BASE    = 'https://www.ecfr.gov/api/versioner/v1'
 // TODO: After deploying the worker, replace the URL below with your *.workers.dev URL:
 //   const GOVINFO_PROXY = 'https://govinfo-proxy.YOUR-NAME.workers.dev'
 //
-const GOVINFO_PROXY = 'https://govinfo-proxy.jamisonsites.workers.dev'  // ← your worker URL goes here
+const GOVINFO_PROXY = 'https://govinfo-proxy.jamison-sites.workers.dev'
 const GOVINFO_BASE  = GOVINFO_PROXY   // all GovInfo fetches route through the proxy
 const GOVINFO_KEY   = 'D2ndyZTXqQlbpMWaAeDSwDJD6WD7wKQqYvekZNiY'
 
