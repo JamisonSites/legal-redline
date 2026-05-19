@@ -1,0 +1,178 @@
+/* ---- Global Reset & Tokens ---- */
+:root {
+  --ink: #1a1a1a;
+  --bg: #fafaf8;
+  --bg2: #f0ede8;
+  --red: #c0392b;
+  --green: #1a6b3c;
+  --accent: #8b1a1a;
+  --border: #d4cfc8;
+  --font-serif: 'Georgia', 'Times New Roman', serif;
+  --font-mono: 'Courier New', monospace;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: var(--font-serif);
+  background: var(--bg);
+  color: var(--ink);
+  line-height: 1.65;
+}
+
+/* ---- Redline Marks ---- */
+ins.rl-ins {
+  text-decoration: underline;
+  color: var(--green);
+  background: rgba(26, 107, 60, 0.08);
+  font-style: normal;
+}
+
+del.rl-del {
+  text-decoration: line-through;
+  color: var(--red);
+  background: rgba(192, 57, 43, 0.08);
+}
+
+/* ---- Layout ---- */
+.app-shell {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+header.site-header {
+  background: var(--accent);
+  color: #fff;
+  padding: 0.75rem 2rem;
+  display: flex;
+  align-items: baseline;
+  gap: 1rem;
+}
+
+header.site-header h1 {
+  font-size: 1.4rem;
+  letter-spacing: 0.02em;
+}
+
+header.site-header span {
+  font-size: 0.85rem;
+  opacity: 0.75;
+}
+
+.main-content {
+  flex: 1;
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 2rem 1.5rem;
+  width: 100%;
+}
+
+/* ---- Controls Panel ---- */
+.controls-panel {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 1.25rem 1.5rem;
+  margin-bottom: 1.5rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: flex-end;
+}
+
+.control-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  min-width: 180px;
+}
+
+.control-group label {
+  font-size: 0.78rem;
+  font-family: sans-serif;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #555;
+}
+
+.control-group select,
+.control-group input {
+  font-family: var(--font-serif);
+  font-size: 0.95rem;
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: #fff;
+  color: var(--ink);
+}
+
+.btn-compare {
+  padding: 0.5rem 1.4rem;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  font-family: var(--font-serif);
+  font-size: 0.95rem;
+  cursor: pointer;
+  align-self: flex-end;
+}
+.btn-compare:hover { background: #6b1212; }
+.btn-compare:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ---- Stats Bar ---- */
+.stats-bar {
+  font-family: sans-serif;
+  font-size: 0.83rem;
+  color: #555;
+  margin-bottom: 1rem;
+  display: flex;
+  gap: 1.5rem;
+}
+.stats-bar .added { color: var(--green); font-weight: 600; }
+.stats-bar .removed { color: var(--red); font-weight: 600; }
+
+/* ---- Redline Viewer ---- */
+.redline-viewer {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 2rem 2.5rem;
+  font-family: var(--font-serif);
+  font-size: 0.95rem;
+  line-height: 1.8;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* ---- Title Browser ---- */
+.title-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.title-card {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 0.75rem 1rem;
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+.title-card:hover { border-color: var(--accent); }
+.title-card .num { font-size: 0.75rem; color: #888; font-family: sans-serif; }
+.title-card .name { font-size: 0.92rem; }
+
+/* ---- Loading / Error ---- */
+.loading, .error-msg {
+  font-family: sans-serif;
+  padding: 2rem;
+  text-align: center;
+  color: #888;
+  font-size: 0.9rem;
+}
+.error-msg { color: var(--red); }
