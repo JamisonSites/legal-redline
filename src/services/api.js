@@ -2,8 +2,17 @@
 // Legal Red Line — Data Service Layer
 // -------------------------------------------------------
 const ECFR_BASE    = 'https://www.ecfr.gov/api/versioner/v1'
-const GOVINFO_BASE = 'https://api.govinfo.gov'
-const GOVINFO_KEY  = 'D2ndyZTXqQlbpMWaAeDSwDJD6WD7wKQqYvekZNiY'
+// ── GovInfo proxy ──────────────────────────────────────
+// api.govinfo.gov blocks browser requests (no CORS headers).
+// A Cloudflare Worker proxy is needed — see cloudflare-worker/govinfo-proxy.js
+// for setup instructions (~5 min, free).
+//
+// TODO: After deploying the worker, replace the URL below with your *.workers.dev URL:
+//   const GOVINFO_PROXY = 'https://govinfo-proxy.YOUR-NAME.workers.dev'
+//
+const GOVINFO_PROXY = 'https://govinfo-proxy.jamisonsites.workers.dev'  // ← your worker URL goes here
+const GOVINFO_BASE  = GOVINFO_PROXY   // all GovInfo fetches route through the proxy
+const GOVINFO_KEY   = 'D2ndyZTXqQlbpMWaAeDSwDJD6WD7wKQqYvekZNiY'
 
 // ── CFR Structure & Navigation ───────────────────────
 
