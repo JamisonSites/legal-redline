@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react'
 import {
   getCFRStructure, getCFRVersions, getYearlySnapshots, flattenSections,
-  USC_TITLES, getUSCGranules, buildUSCTree,
+  USC_TITLES, getUSCEditions, getUSCGranules, buildUSCTree,
 } from './services/api.js'
 import NavTree from './components/NavTree.jsx'
 import SectionViewer from './components/SectionViewer.jsx'
