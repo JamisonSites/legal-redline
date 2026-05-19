@@ -173,17 +173,13 @@ export default function App() {
   const handleSelectSection = useCallback((node) => {
     setActiveSection(node)
     setActiveGroup(null)
-    if (corpus === 'cfr') {
-      const id    = node.identifier || node.label
-      const crumbs = buildBreadcrumbs(structure, id) || []
-      setActiveBreadcrumbs(crumbs)
-    } else {
-      // USC: breadcrumb is just [Title label]
-      setActiveBreadcrumbs([{ label: selectedTitle?.name || '', node: structure }])
-    }
+    // Both CFR and USC now use the full hierarchical breadcrumb
+    const id    = node.identifier || node.label
+    const crumbs = buildBreadcrumbs(structure, id) || []
+    setActiveBreadcrumbs(crumbs)
   }, [structure, corpus, selectedTitle])
 
-  // ── Breadcrumb click (CFR only; USC shows title) ─────
+  // ── Breadcrumb click ─────────────────────────────────
   const handleBreadcrumbClick = useCallback((node) => {
     if (!node) return
     if (node.type === 'section') {

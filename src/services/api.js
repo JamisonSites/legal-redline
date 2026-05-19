@@ -208,33 +208,112 @@ export async function getUSCEditions(titleNum) {
   return editions
 }
 
-// Build a synthetic tree from GovInfo granule list (for NavTree)
-// Granule title examples: "§ 1. Tax imposed", "Section 501", "Sec. 7701."
-export function buildUSCTree(titleNum, titleName, granules) {
-  const sections = granules.map(g => {
-    // Extract section number from granuleId:
-    //   USCODE-2022-title26-subtitleA-chap1-subchapA-sec501 → "501"
-    //   USCODE-2022-title26-sec6045 → "6045"
-    const secMatch = g.granuleId?.match(/-sec([a-zA-Z0-9]+)$/)
-    const secNum   = secMatch ? secMatch[1] : (g.granuleId || '')
+// ── USC hierarchy parser ─────────────────────────────────
+// Granule IDs encode the full structural path, e.g.:
+//   USCODE-2024-title26-subtitleA-chap1-subchapA-partIV-subpartD-sec45B
+// We parse each segment to build a proper nested tree.
 
-    return {
-      type:              'section',
-      identifier:        secNum,          // "6045" — used for nav, activePath, search
-      label:             secNum,          // same
-      label_description: g.title || `§ ${secNum}`,
-      granuleId:         g.granuleId,     // full GovInfo path used only for API calls
-      children:          [],
-    }
-  })
-
-  return {
-    type:            'title',
-    identifier:      `title-${titleNum}`,
-    label:           `Title ${titleNum}`,
-    label_description: titleName,
-    children:        sections,
+function _parseUSCPath(granuleId) {
+  const path  = granuleId.replace(/^USCODE-\d{4}-/, '')  // strip year prefix
+  const parts = path.split('-')
+  const segs  = {}
+  for (const p of parts) {
+    // Order matters: longer prefixes (subchap, subpart) checked before shorter (chap, part)
+    if      (/^title\d+$/i.test(p))          segs.title      = p
+    else if (/^subtitle[A-Z0-9]+$/i.test(p)) segs.subtitle   = p
+    else if (/^subchap[A-Z0-9]+$/i.test(p))  segs.subchapter = p
+    else if (/^chap\w+$/i.test(p))           segs.chapter    = p
+    else if (/^subpart[A-Z0-9]+$/i.test(p))  segs.subpart    = p
+    else if (/^part[A-Z0-9]+$/i.test(p))     segs.part       = p
+    else if (/^sec\w+$/i.test(p))            segs.section    = p
   }
+  return segs
+}
+
+function _segLabel(type, raw) {
+  // Convert raw segment key to human-readable label
+  const val = raw.replace(/^(subtitle|subchap(ter)?|subpart|chap(ter)?|part|sec)/i, '').toUpperCase()
+  switch (type) {
+    case 'subtitle':    return `Subtitle ${val}`
+    case 'chapter':     return `Chapter ${val}`
+    case 'subchapter':  return `Subchapter ${val}`
+    case 'part':        return `Part ${val}`
+    case 'subpart':     return `Subpart ${val}`
+    default:            return raw
+  }
+}
+
+// Build a fully-nested USC tree from GovInfo granule list.
+// Structure: Title → Subtitle → Chapter → Subchapter → Part → Subpart → Section
+// Intermediate levels are created only when present in the granule path.
+export function buildUSCTree(titleNum, titleName, granules) {
+  const root = {
+    type:              'title',
+    identifier:        `title-${titleNum}`,
+    label:             `Title ${titleNum}`,
+    label_description: titleName,
+    children:          [],
+  }
+
+  // Maps nodeKey → node, scoped per parent so siblings stay separate
+  // We use a path-based key: parent.identifier + '/' + raw to guarantee uniqueness
+  const nodeCache = new Map()
+
+  function getOrCreate(parent, type, raw) {
+    const cacheKey = `${parent.identifier}/${raw}`
+    if (nodeCache.has(cacheKey)) return nodeCache.get(cacheKey)
+    const node = {
+      type,
+      identifier:        raw,
+      label:             _segLabel(type, raw),
+      label_description: '',   // filled by section-range summary below
+      children:          [],
+      _path:             cacheKey,
+    }
+    parent.children.push(node)
+    nodeCache.set(cacheKey, node)
+    return node
+  }
+
+  for (const g of granules) {
+    const segs   = _parseUSCPath(g.granuleId || '')
+    const secNum = segs.section ? segs.section.replace(/^sec/i, '') : ''
+    if (!secNum) continue  // skip any non-section granules
+
+    // Walk/create the hierarchy chain
+    let cursor = root
+    if (segs.subtitle)   cursor = getOrCreate(cursor, 'subtitle',   segs.subtitle)
+    if (segs.chapter)    cursor = getOrCreate(cursor, 'chapter',    segs.chapter)
+    if (segs.subchapter) cursor = getOrCreate(cursor, 'subchapter', segs.subchapter)
+    if (segs.part)       cursor = getOrCreate(cursor, 'part',       segs.part)
+    if (segs.subpart)    cursor = getOrCreate(cursor, 'subpart',    segs.subpart)
+
+    cursor.children.push({
+      type:              'section',
+      identifier:        secNum,
+      label:             secNum,
+      label_description: g.title || `§ ${secNum}`,
+      granuleId:         g.granuleId,
+      children:          [],
+    })
+  }
+
+  // Annotate each intermediate node with "§§ first – last" range
+  function annotateRanges(node) {
+    if (node.type === 'section') return
+    const secs = flattenSections(node)
+    if (secs.length > 0 && node.type !== 'title') {
+      const first = secs[0].label
+      const last  = secs[secs.length - 1].label
+      node.label_description = first === last
+        ? `§ ${first}`
+        : `§§ ${first} – ${last}`
+    }
+    for (const child of node.children) annotateRanges(child)
+  }
+  annotateRanges(root)
+
+  return root
 }
 
 // Fetch flat granule list for a GovInfo USCODE package.

@@ -5,6 +5,7 @@ import { flattenSections } from '../services/api.js'
 function TreeNode({ node, titleNum, activePath, onSelect, depth = 0 }) {
   const hasChildren = node.children?.length > 0
   const isSection   = node.type === 'section'
+  const isTitle     = node.type === 'title'
   const nodeId      = node.identifier || node.label
   const isActive    = activePath === nodeId
 
@@ -14,40 +15,58 @@ function TreeNode({ node, titleNum, activePath, onSelect, depth = 0 }) {
     return (n.children || []).some(containsActive)
   }
 
-  const [open, setOpen] = useState(() => depth < 2 || containsActive(node))
+  // Auto-open: title always open, depth-1 nodes (subtitles/top chapters) open by default
+  const [open, setOpen] = useState(() => isTitle || depth < 2 || containsActive(node))
 
   useEffect(() => {
     if (containsActive(node)) setOpen(true)
   }, [activePath])
 
-  const label      = node.label_description || node.label || node.identifier || '—'
-  const shortLabel = node.identifier || node.label || ''
+  // For sections: show "§ {num}  title"
+  // For intermediate nodes: show "{Subtitle A}" with range "§§ 1–59B" below
+  const mainLabel  = isSection
+    ? (node.label_description || node.label || '—')
+    : node.label || node.identifier || '—'
+  const rangeLabel = !isSection && node.label_description
+    ? node.label_description
+    : ''
+
+  // Indent: use tighter spacing for deeply-nested levels
+  const indent = Math.min(depth, 4) * 0.7 + 0.4
 
   return (
-    <div className={`tree-node depth-${depth}`}>
+    <div className={`tree-node depth-${depth} node-type-${node.type}`}>
       <div
         className={`tree-item ${isActive ? 'active' : ''} ${isSection ? 'tree-section' : 'tree-parent'}`}
         onClick={() => {
           if (isSection) onSelect(node)
           else if (hasChildren) setOpen(o => !o)
         }}
-        style={{ paddingLeft: `${0.5 + depth * 0.75}rem` }}
-        title={label}
+        style={{ paddingLeft: `${indent}rem` }}
+        title={mainLabel}
       >
         {hasChildren && !isSection && (
           <span className="tree-toggle">{open ? '▾' : '▸'}</span>
         )}
         {isSection && <span className="tree-section-icon">§</span>}
-        <span className="tree-label">
-          {shortLabel && <span className="tree-id">{shortLabel}</span>}
-          {label !== shortLabel && <span className="tree-desc"> {label}</span>}
-        </span>
+
+        {isSection ? (
+          <span className="tree-label">
+            <span className="tree-id">{node.label}</span>
+            <span className="tree-desc"> {node.label_description}</span>
+          </span>
+        ) : (
+          <span className="tree-label tree-group-label">
+            <span className="tree-group-name">{mainLabel}</span>
+            {rangeLabel && <span className="tree-group-range">{rangeLabel}</span>}
+          </span>
+        )}
       </div>
       {hasChildren && open && !isSection && (
         <div className="tree-children">
           {node.children.map((child, i) => (
             <TreeNode
-              key={i}
+              key={child.identifier || i}
               node={child}
               titleNum={titleNum}
               activePath={activePath}
