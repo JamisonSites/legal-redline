@@ -95,6 +95,7 @@ export default function App() {
   const [activeGroup, setActiveGroup]     = useState(null)
   const [activeBreadcrumbs, setActiveBreadcrumbs] = useState([])
   const [loading, setLoading]             = useState(false)
+  const [loadingMsg, setLoadingMsg]       = useState('')
   const [error, setError]                 = useState(null)
   const [uscTotalSections, setUscTotal]   = useState(0)
 
@@ -116,11 +117,11 @@ export default function App() {
 
   // ── USC title selection ──────────────────────────────
   async function handleSelectUSCTitle(num, name) {
-    setError(null); setLoading(true)
+    setError(null); setLoading(true); setLoadingMsg('Finding latest edition…')
     setSelectedTitle({ num, name }); setActiveSection(null); setActiveGroup(null)
+    setUscTotal(0)
     setView('title')
     try {
-      // First, ask the collections endpoint for real package IDs for this title
       let packageId = ''
       let granules  = []
       let total     = 0
@@ -128,20 +129,23 @@ export default function App() {
       const editions = await getUSCEditions(num)
       console.log('[USC] editions found for title', num, ':', editions)
 
-      // Build candidate list: real editions (newest first) + year-guesses as fallback
+      // Candidate IDs: real editions (newest first) + year-guesses as fallback
       const currentYear = new Date().getFullYear()
       const guessYears  = Array.from({ length: currentYear - 2012 + 1 }, (_, i) => currentYear - i)
       const candidateIds = [
-        ...editions.map(e => e.packageId).reverse(),   // real ones, newest first
+        ...editions.map(e => e.packageId).reverse(),
         ...guessYears.map(y => `USCODE-${y}-title${num}`),
       ]
-      // Deduplicate
       const seen = new Set()
       const uniqueIds = candidateIds.filter(id => { if (seen.has(id)) return false; seen.add(id); return true })
 
       for (const pkgId of uniqueIds) {
         console.log('[USC] trying package:', pkgId)
-        const result = await getUSCGranules(pkgId)
+        setLoadingMsg(`Loading sections from ${pkgId}…`)
+        const result = await getUSCGranules(pkgId, (loaded, tot) => {
+          setLoadingMsg(`Loading sections… ${loaded.toLocaleString()} / ${tot.toLocaleString()}`)
+          setUscTotal(tot)
+        })
         if (result.granules.length > 0) {
           packageId = pkgId
           granules  = result.granules
@@ -158,6 +162,7 @@ export default function App() {
         )
       }
 
+      setLoadingMsg('Building navigation tree…')
       setUscTotal(total)
       const tree = buildUSCTree(num, name, granules)
       setStructure(tree)
@@ -166,7 +171,7 @@ export default function App() {
       console.error('[USC] handleSelectUSCTitle failed:', e)
       setError(e.message)
     }
-    finally { setLoading(false) }
+    finally { setLoading(false); setLoadingMsg('') }
   }
 
   // ── Section selection ────────────────────────────────
@@ -273,7 +278,16 @@ export default function App() {
             <main className="section-area">
               {loading && (
                 <div className="loading">
-                  {corpus === 'usc' ? 'Loading USC sections from GovInfo…' : 'Loading title structure…'}
+                  <div className="loading-spinner" />
+                  <div>{loadingMsg || (corpus === 'usc' ? 'Loading USC sections…' : 'Loading title structure…')}</div>
+                  {corpus === 'usc' && uscTotalSections > 0 && (
+                    <div className="loading-progress">
+                      <div
+                        className="loading-bar"
+                        style={{ width: `${Math.min(100, (sections.length / uscTotalSections) * 100)}%` }}
+                      />
+                    </div>
+                  )}
                 </div>
               )}
               {error && <div className="error-msg">{error}</div>}
@@ -284,12 +298,12 @@ export default function App() {
                 ) : (
                   <div className="pick-section">
                     <div className="pick-section-inner">
-                      <span className="pick-icon">{corpus === 'usc' ? '§' : '§'}</span>
+                      <span className="pick-icon">§</span>
                       <h2>Select a section from the contents panel</h2>
                       <p>Use the tree on the left, or type a section number in the search box.</p>
-                      {corpus === 'usc' && uscTotalSections > 500 && (
-                        <p className="usc-notice">
-                          Showing first 500 of {uscTotalSections} sections. Use the search box to jump to any section.
+                      {corpus === 'usc' && sections.length > 0 && (
+                        <p className="usc-section-count">
+                          {sections.length.toLocaleString()} sections loaded
                         </p>
                       )}
                       {sections.length > 0 && (

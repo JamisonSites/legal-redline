@@ -316,53 +316,72 @@ export function buildUSCTree(titleNum, titleName, granules) {
   return root
 }
 
-// Fetch flat granule list for a GovInfo USCODE package.
-// Tries the /granules endpoint first; if that comes back empty, falls
-// back to the GovInfo search API which indexes section-level content.
-export async function getUSCGranules(packageId) {
-  // ── Strategy 1: /granules endpoint (offsetMark=* is required by GovInfo API) ──
-  const granulesUrl = `${GOVINFO_BASE}/packages/${packageId}/granules?offsetMark=*&pageSize=500&api_key=${GOVINFO_KEY}`
-  console.log('[USC] fetching granules:', granulesUrl)
-  const res = await fetch(granulesUrl)
-  console.log('[USC] granules response status:', res.status)
-  if (res.ok) {
-    const data = await res.json()
-    console.log('[USC] granules response keys:', Object.keys(data), 'count:', data.count)
-    // Accept all granule types — no filter (different USC editions use different class names)
-    const granules = data.granules || data.content || []
-    if (granules.length > 0) {
-      console.log('[USC] first granule sample:', granules[0])
-      return { granules, total: data.count ?? granules.length }
+// Fetch ALL granules for a GovInfo USCODE package by following pagination cursors.
+// GovInfo returns up to 1000 per page and a nextPage URL for subsequent pages.
+// A title like USC Title 26 has ~3500 sections → ~4 sequential requests.
+export async function getUSCGranules(packageId, onProgress) {
+  // ── Strategy 1: /granules endpoint with full pagination ──────────────────
+  const allGranules = []
+  let nextUrl = `${GOVINFO_BASE}/packages/${packageId}/granules?offsetMark=*&pageSize=1000&api_key=${GOVINFO_KEY}`
+  let total   = 0
+  let pages   = 0
+
+  while (nextUrl && pages < 40) {   // safety cap: 40 pages = 40,000 sections
+    console.log(`[USC] granules page ${pages + 1}:`, nextUrl)
+    let res
+    try { res = await fetch(nextUrl) } catch (e) { break }
+
+    if (!res.ok) {
+      if (pages === 0) break  // first page failed → try search fallback below
+      break                   // partial data OK — return what we have
     }
-    console.warn('[USC] /granules returned 0 items — trying search fallback')
-  } else {
-    console.warn('[USC] /granules HTTP', res.status, '— trying search fallback')
+
+    const data     = await res.json()
+    const page     = data.granules || data.content || []
+    total          = data.count ?? (allGranules.length + page.length)
+    allGranules.push(...page)
+    pages++
+
+    if (onProgress) onProgress(allGranules.length, total)
+
+    // Follow nextPage, rewriting api.govinfo.gov → our proxy host
+    if (data.nextPage && page.length > 0) {
+      try {
+        const np = new URL(data.nextPage)
+        nextUrl  = `${GOVINFO_BASE}${np.pathname}${np.search}`
+        if (!nextUrl.includes('api_key')) nextUrl += `&api_key=${GOVINFO_KEY}`
+      } catch { nextUrl = null }
+    } else {
+      nextUrl = null
+    }
   }
 
-  // ── Strategy 2: GovInfo search API (POST, indexes by packageId) ──
+  if (allGranules.length > 0) {
+    console.log(`[USC] loaded ${allGranules.length} / ${total} granules in ${pages} pages`)
+    return { granules: allGranules, total }
+  }
+
+  // ── Strategy 2: GovInfo search API (POST) ───────────────────────────────
+  console.warn('[USC] /granules empty — trying search fallback')
   const searchUrl = `${GOVINFO_BASE}/search?api_key=${GOVINFO_KEY}`
-  console.log('[USC] trying search fallback:', searchUrl)
   try {
     const sr = await fetch(searchUrl, {
-      method: 'POST',
+      method:  'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        query: `packageId:${packageId}`,
-        pageSize: '500',
+      body:    JSON.stringify({
+        query:      `packageId:${packageId}`,
+        pageSize:   '1000',
         offsetMark: '*',
-        sorts: [{ field: 'score', sortOrder: 'DESC' }],
+        sorts:      [{ field: 'score', sortOrder: 'DESC' }],
       }),
     })
     if (sr.ok) {
-      const sd = await sr.json()
-      console.log('[USC] search response:', sd.count, 'results, keys:', Object.keys(sd))
+      const sd      = await sr.json()
       const results = sd.results || []
       if (results.length > 0) {
-        // Map search results into granule-like shape
         const granules = results.map(r => ({
           granuleId: r.granuleId || r.packageId || r.id,
           title:     r.title || '',
-          granuleClass: 'SECTION',
         }))
         return { granules, total: sd.count ?? granules.length }
       }
@@ -371,7 +390,6 @@ export async function getUSCGranules(packageId) {
     console.warn('[USC] search fallback failed:', e.message)
   }
 
-  // ── Strategy 3: Give up — return empty, caller shows message ──
   console.error('[USC] all strategies exhausted for', packageId)
   return { granules: [], total: 0 }
 }
