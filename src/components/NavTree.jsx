@@ -1,25 +1,26 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
+import { flattenSections } from '../services/api.js'
 
-// Recursively renders the CFR structure tree
+// ── Single tree node ────────────────────────────────────
 function TreeNode({ node, titleNum, activePath, onSelect, depth = 0 }) {
   const hasChildren = node.children?.length > 0
-  const isSection = node.type === 'section'
-  const nodeId = node.identifier || node.label
-  const isActive = activePath === nodeId
+  const isSection   = node.type === 'section'
+  const nodeId      = node.identifier || node.label
+  const isActive    = activePath === nodeId
 
-  // Auto-expand if a child is active
   const containsActive = (n) => {
     if (!activePath) return false
     if ((n.identifier || n.label) === activePath) return true
     return (n.children || []).some(containsActive)
   }
+
   const [open, setOpen] = useState(() => depth < 2 || containsActive(node))
 
   useEffect(() => {
     if (containsActive(node)) setOpen(true)
   }, [activePath])
 
-  const label = node.label_description || node.label || node.identifier || '—'
+  const label      = node.label_description || node.label || node.identifier || '—'
   const shortLabel = node.identifier || node.label || ''
 
   return (
@@ -60,9 +61,46 @@ function TreeNode({ node, titleNum, activePath, onSelect, depth = 0 }) {
   )
 }
 
-export default function NavTree({ structure, titleNum, activePath, onSelect, onClose }) {
+// ── NavTree with jump-to-section search ─────────────────
+export default function NavTree({ structure, titleNum, activePath, onSelect }) {
   const [search, setSearch] = useState('')
   const [collapsed, setCollapsed] = useState(false)
+  const [suggestions, setSuggestions] = useState([])
+  const [showSuggestions, setShowSuggestions] = useState(false)
+  const inputRef = useRef(null)
+
+  // Flat list of all sections for search/jump
+  const allSections = useMemo(() => flattenSections(structure), [structure])
+
+  // Update suggestions whenever search text changes
+  useEffect(() => {
+    const q = search.trim().toLowerCase()
+    if (!q) { setSuggestions([]); return }
+
+    const matched = allSections.filter(s => {
+      const id   = (s.identifier || s.label || '').toLowerCase()
+      const desc = (s.label_description || '').toLowerCase()
+      return id.startsWith(q) || id.includes(q) || desc.includes(q)
+    }).slice(0, 8) // cap at 8 suggestions
+    setSuggestions(matched)
+  }, [search, allSections])
+
+  function handleKeyDown(e) {
+    if (e.key === 'Enter' && suggestions.length > 0) {
+      jumpTo(suggestions[0])
+    }
+    if (e.key === 'Escape') {
+      setShowSuggestions(false)
+      inputRef.current?.blur()
+    }
+  }
+
+  function jumpTo(section) {
+    onSelect(section)
+    setSearch('')
+    setSuggestions([])
+    setShowSuggestions(false)
+  }
 
   if (collapsed) {
     return (
@@ -80,14 +118,39 @@ export default function NavTree({ structure, titleNum, activePath, onSelect, onC
         <span className="nav-tree-title">Contents</span>
         <button className="nav-collapse-btn" onClick={() => setCollapsed(true)} title="Hide">✕</button>
       </div>
-      <div className="nav-tree-search">
+
+      {/* Section jump / filter search */}
+      <div className="nav-tree-search" style={{ position: 'relative' }}>
         <input
+          ref={inputRef}
           type="text"
-          placeholder="Filter sections…"
+          placeholder="Jump to section… (e.g. 1.501)"
           value={search}
-          onChange={e => setSearch(e.target.value)}
+          onChange={e => { setSearch(e.target.value); setShowSuggestions(true) }}
+          onFocus={() => setShowSuggestions(true)}
+          onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
+          onKeyDown={handleKeyDown}
         />
+        {showSuggestions && suggestions.length > 0 && (
+          <div className="nav-search-suggestions">
+            {suggestions.map((s, i) => {
+              const id   = s.identifier || s.label
+              const desc = s.label_description || s.label || ''
+              return (
+                <div
+                  key={i}
+                  className="nav-suggestion-item"
+                  onMouseDown={() => jumpTo(s)}
+                >
+                  <span className="ns-id">§ {id}</span>
+                  <span className="ns-desc">{desc !== id ? desc : ''}</span>
+                </div>
+              )
+            })}
+          </div>
+        )}
       </div>
+
       <div className="nav-tree-body">
         {structure && (
           <TreeNode

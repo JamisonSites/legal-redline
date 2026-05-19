@@ -142,7 +142,7 @@ body { font-family: var(--font); background: var(--bg); color: var(--ink); line-
 /* ── Section area ───────────────────────────────────── */
 .section-area {
   flex: 1;
-  overflow-y: auto;
+  overflow: hidden;          /* section-viewer now owns the scroll */
   height: calc(100vh - var(--hdr-h));
   display: flex;
   flex-direction: column;
@@ -165,26 +165,69 @@ body { font-family: var(--font); background: var(--bg); color: var(--ink); line-
 .btn-first-section { background: var(--accent); color: #fff; border: none; border-radius: 4px; padding: .5rem 1.2rem; font-family: var(--font); cursor: pointer; font-size: .9rem; }
 
 /* ── Section Viewer ─────────────────────────────────── */
-.section-viewer { display: flex; flex-direction: column; flex: 1; padding-bottom: calc(var(--slider-h) + 1rem); }
+.section-viewer {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  overflow-y: auto;          /* section-viewer is the scroll container */
+  height: 100%;
+  padding-bottom: calc(var(--slider-h) + 1rem);
+}
 
+/* ── Sticky breadcrumb (clickable ancestors) ─────────── */
 .sticky-breadcrumb {
   position: sticky;
   top: 0;
   z-index: 50;
   background: var(--bg2);
   border-bottom: 1px solid var(--border);
-  padding: .4rem 1.5rem;
+  padding: .35rem 1.5rem;
   font-family: var(--sans);
   font-size: .78rem;
   color: #666;
   display: flex;
   flex-wrap: wrap;
-  gap: .2rem;
+  gap: .1rem;
   align-items: center;
 }
-.crumb-sep   { margin: 0 .25rem; color: #bbb; }
-.crumb-label { color: #555; }
-.crumb:last-child .crumb-label { color: var(--ink); font-weight: 600; }
+.crumb-sep   { margin: 0 .2rem; color: #bbb; }
+.crumb-label { color: var(--ink); font-weight: 600; }
+.crumb-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  font-family: var(--sans);
+  font-size: .78rem;
+  color: var(--accent);
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.crumb-btn:hover { color: var(--red); }
+
+/* ── Scroll Lock Bar ─────────────────────────────────── */
+.scroll-lock-bar {
+  position: sticky;
+  top: 29px;               /* sits just below the breadcrumb */
+  z-index: 48;
+  background: #fff;
+  border-bottom: 2px solid var(--accent);
+  padding: .3rem 1.5rem;
+  font-family: var(--sans);
+  font-size: .77rem;
+  color: #444;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .15rem;
+  box-shadow: 0 2px 6px rgba(0,0,0,.07);
+}
+.slock-sep  { color: #bbb; margin: 0 .15rem; }
+.slock-text { color: var(--accent); font-weight: 600; }
+.slock-level-1 .slock-text { font-size: .78rem; }
+.slock-level-2 .slock-text { font-size: .76rem; color: #555; font-weight: 500; }
+.slock-level-3 .slock-text { font-size: .74rem; color: #777; font-weight: 400; }
 
 .section-header {
   padding: 1rem 1.5rem .75rem;
@@ -288,7 +331,95 @@ del.rl-del { text-decoration: line-through; color: var(--red); background: rgba(
 .hl-del-btn { background: none; border: none; color: #bbb; cursor: pointer; font-size: .8rem; flex-shrink: 0; }
 .hl-del-btn:hover { color: var(--red); }
 
+/* ── CFR structured content ─────────────────────────── */
+.cfr-content { font-size: .93rem; line-height: 1.85; }
+.cfr-sectno  { font-family: var(--sans); font-size: .82rem; font-weight: 700; color: var(--accent); text-transform: uppercase; letter-spacing: .04em; margin-bottom: .2rem; }
+.cfr-subject { font-size: 1.05rem; font-weight: 700; margin-bottom: .75rem; margin-top: .25rem; }
+.cfr-head    { font-weight: 700; margin: .9rem 0 .35rem; }
+.cfr-p       { margin-bottom: .6rem; }
+.cfr-block   { margin-bottom: .5rem; }
+.cfr-toc     { display: none; }  /* hide the table of contents (duplicated in nav tree) */
+.cfr-table   { border-collapse: collapse; width: 100%; margin: .75rem 0; font-size: .85rem; }
+.cfr-td, .cfr-th { border: 1px solid var(--border); padding: .35rem .6rem; }
+.cfr-th      { background: var(--bg2); font-weight: 600; font-size: .8rem; font-family: var(--sans); }
+
+/* ── CFR inline section reference links ─────────────── */
+.cfr-ref-wrap   { position: relative; display: inline; }
+.cfr-ref-link   { color: var(--accent); text-decoration: underline; text-underline-offset: 2px; cursor: pointer; font-style: normal; }
+.cfr-ref-link:hover { color: var(--red); }
+.cfr-ref-popup  {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 0;
+  z-index: 400;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: 0 6px 20px rgba(0,0,0,.15);
+  padding: .6rem .85rem;
+  min-width: 260px;
+  max-width: 360px;
+  display: flex;
+  flex-direction: column;
+  gap: .35rem;
+  font-family: var(--sans);
+}
+.cfr-ref-popup-title  { font-size: .78rem; font-weight: 700; color: var(--accent); }
+.cfr-ref-popup-body   { font-size: .78rem; color: #444; line-height: 1.5; white-space: pre-wrap; }
+.cfr-ref-popup-footer { font-size: .72rem; color: #aaa; border-top: 1px solid var(--border); padding-top: .25rem; }
+
+/* ── Group view (chapter/part listing) ──────────────── */
+.group-view          { padding: 2rem 2rem 6rem; max-width: 860px; }
+.group-view-header   { margin-bottom: 1.5rem; }
+.group-view-title    { font-size: 1.2rem; margin-bottom: .25rem; }
+.group-view-subtitle { font-family: var(--sans); font-size: .85rem; color: #888; }
+.group-section-list  { display: flex; flex-direction: column; gap: .4rem; }
+.group-section-item  {
+  display: flex;
+  align-items: baseline;
+  gap: .75rem;
+  padding: .55rem .85rem;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  cursor: pointer;
+  background: #fff;
+  transition: border-color .12s;
+}
+.group-section-item:hover { border-color: var(--accent); }
+.gs-num   { font-family: var(--sans); font-size: .8rem; font-weight: 700; color: var(--accent); flex-shrink: 0; }
+.gs-label { font-size: .88rem; color: #444; }
+.group-empty { color: #999; font-family: var(--sans); font-size: .88rem; padding: 1rem 0; }
+
+/* ── Nav tree search suggestions ────────────────────── */
+.nav-search-suggestions {
+  position: absolute;
+  top: 100%;
+  left: 0; right: 0;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-top: none;
+  border-radius: 0 0 5px 5px;
+  z-index: 500;
+  box-shadow: 0 4px 12px rgba(0,0,0,.12);
+  max-height: 260px;
+  overflow-y: auto;
+}
+.nav-suggestion-item {
+  display: flex;
+  flex-direction: column;
+  gap: .1rem;
+  padding: .4rem .6rem;
+  cursor: pointer;
+  font-family: var(--sans);
+  font-size: .78rem;
+  border-bottom: 1px solid var(--border);
+}
+.nav-suggestion-item:last-child { border-bottom: none; }
+.nav-suggestion-item:hover { background: var(--bg2); }
+.ns-id   { font-weight: 700; color: var(--accent); }
+.ns-desc { color: #666; font-size: .73rem; }
+
 /* ── Scrollbar ──────────────────────────────────────── */
-.nav-tree-body::-webkit-scrollbar, .section-area::-webkit-scrollbar { width: 5px; }
-.nav-tree-body::-webkit-scrollbar-track, .section-area::-webkit-scrollbar-track { background: transparent; }
-.nav-tree-body::-webkit-scrollbar-thumb, .section-area::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+.nav-tree-body::-webkit-scrollbar, .section-viewer::-webkit-scrollbar { width: 5px; }
+.nav-tree-body::-webkit-scrollbar-track, .section-viewer::-webkit-scrollbar-track { background: transparent; }
+.nav-tree-body::-webkit-scrollbar-thumb, .section-viewer::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
