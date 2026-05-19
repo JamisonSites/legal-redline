@@ -81,7 +81,7 @@ function TreeNode({ node, titleNum, activePath, onSelect, depth = 0 }) {
 }
 
 // ── NavTree with jump-to-section search ─────────────────
-export default function NavTree({ structure, titleNum, activePath, onSelect, corpus = 'cfr' }) {
+export default function NavTree({ structure, titleNum, activePath, onSelect, corpus = 'cfr', mobileOpen = false, onMobileClose }) {
   const [search, setSearch] = useState('')
   const [collapsed, setCollapsed] = useState(false)
   const [suggestions, setSuggestions] = useState([])
@@ -135,7 +135,7 @@ export default function NavTree({ structure, titleNum, activePath, onSelect, cor
   }
 
   return (
-    <div className="nav-tree">
+    <div className={`nav-tree${mobileOpen ? ' mobile-open' : ''}`}>
       <div className="nav-tree-header">
         <span className="nav-tree-title">Contents</span>
         <button className="nav-collapse-btn" onClick={() => setCollapsed(true)} title="Hide">✕</button>

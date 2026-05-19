@@ -590,3 +590,131 @@ del.rl-del { text-decoration: line-through; color: var(--red); background: rgba(
 .nav-tree-body::-webkit-scrollbar, .section-viewer::-webkit-scrollbar { width: 5px; }
 .nav-tree-body::-webkit-scrollbar-track, .section-viewer::-webkit-scrollbar-track { background: transparent; }
 .nav-tree-body::-webkit-scrollbar-thumb, .section-viewer::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+/* ── Mobile menu button (hidden on desktop) ─────────────── */
+.mobile-menu-btn {
+  display: none;
+  background: none;
+  border: none;
+  color: #fff;
+  font-size: 1.25rem;
+  cursor: pointer;
+  padding: 0 .4rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+/* ── Mobile nav overlay (dark backdrop) ─────────────────── */
+.mobile-nav-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.45);
+  z-index: 140;
+}
+
+/* ── Inline mark from highlight feature ─────────────────── */
+mark.hl-mark {
+  border-radius: 2px;
+  padding: 0;
+  /* color/bg set inline via JS */
+}
+
+/* ═══════════════════════════════════════════════════════════
+   MOBILE  (≤ 767 px)
+   ═══════════════════════════════════════════════════════════ */
+@media (max-width: 767px) {
+
+  /* ── Header ──────────────────────────────────────────── */
+  .mobile-menu-btn  { display: block; }
+  .site-subtitle    { display: none; }
+  .site-title-label { font-size: .72rem; }
+
+  /* ── App body: section area is full-width ────────────── */
+  .app-body { overflow: visible; }
+  .section-area {
+    height: calc(100vh - var(--hdr-h));
+    width: 100%;
+  }
+
+  /* ── Nav tree: slide-over drawer ─────────────────────── */
+  .nav-tree {
+    position: fixed;
+    top: var(--hdr-h);
+    left: 0;
+    width: var(--nav-w);
+    max-width: 82vw;
+    height: calc(100vh - var(--hdr-h));
+    z-index: 150;
+    transform: translateX(calc(-1 * var(--nav-w)));
+    transition: transform .25s ease;
+    box-shadow: none;
+    /* Override desktop sticky so the fixed positioning takes effect */
+    position: fixed;
+  }
+  .nav-tree.mobile-open {
+    transform: translateX(0);
+    box-shadow: 4px 0 24px rgba(0,0,0,.2);
+  }
+  .mobile-nav-overlay { display: block; }
+
+  /* ── Date slider: full width ─────────────────────────── */
+  .date-slider {
+    left: 0;
+    height: auto;
+    min-height: var(--slider-h);
+    padding: .5rem .75rem;
+  }
+  .ds-inner {
+    flex-wrap: wrap;
+    gap: .5rem;
+  }
+  .ds-group {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: .15rem;
+    flex: 1;
+    min-width: 120px;
+  }
+  .ds-select {
+    width: 100%;
+    font-size: .78rem;
+  }
+  .ds-arrow { display: none; }
+  .ds-legend {
+    margin-left: 0;
+    width: 100%;
+    justify-content: flex-start;
+    gap: 1rem;
+    font-size: .72rem;
+  }
+  .ds-min-btn { align-self: flex-start; }
+
+  /* ── Section header: tighter on mobile ──────────────── */
+  .section-header {
+    padding: .6rem .85rem .5rem;
+    gap: .5rem;
+  }
+  .section-name { font-size: 1rem; }
+  .section-body { padding: .85rem .85rem; }
+
+  /* ── Breadcrumb: tighter ─────────────────────────────── */
+  .sticky-breadcrumb {
+    padding: .3rem .85rem;
+    font-size: .72rem;
+  }
+
+  /* ── Redline / content: max-width override ───────────── */
+  .usc-content { max-width: 100%; font-size: .88rem; line-height: 1.75; }
+  .redline-text { font-size: .88rem; }
+
+  /* ── Browse: two-column title grid ──────────────────── */
+  .title-list { grid-template-columns: 1fr 1fr; gap: .4rem; }
+  .main-content { padding: 1rem .85rem 6rem; }
+
+  /* ── Group view ──────────────────────────────────────── */
+  .group-view { padding: 1rem .85rem 6rem; }
+
+  /* ── Pick section prompt ─────────────────────────────── */
+  .pick-section-inner { padding: 1.5rem 1rem; }
+}

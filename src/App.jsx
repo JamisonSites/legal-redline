@@ -98,6 +98,7 @@ export default function App() {
   const [loadingMsg, setLoadingMsg]       = useState('')
   const [error, setError]                 = useState(null)
   const [uscTotalSections, setUscTotal]   = useState(0)
+  const [mobileNavOpen, setMobileNavOpen] = useState(false)
 
   // ── CFR title selection ──────────────────────────────
   async function handleSelectCFRTitle(num, name) {
@@ -203,7 +204,7 @@ export default function App() {
   const goNext = () => { if (activeIdx < sections.length - 1) handleSelectSection(sections[activeIdx + 1]) }
   const goPrev = () => { if (activeIdx > 0) handleSelectSection(sections[activeIdx - 1]) }
 
-  const resetToTitle = () => { setActiveSection(null); setActiveGroup(null); setActiveBreadcrumbs([]) }
+  const resetToTitle = () => { setActiveSection(null); setActiveGroup(null); setActiveBreadcrumbs([]); setMobileNavOpen(false) }
   const resetToHome  = () => { setView('browse'); setSelectedTitle(null); resetToTitle() }
 
   // ── Corpus switch — reset to browse ─────────────────
@@ -219,6 +220,15 @@ export default function App() {
   return (
     <div className="app-shell">
       <header className="site-header">
+        {view === 'title' && (
+          <button
+            className="mobile-menu-btn"
+            onClick={() => setMobileNavOpen(o => !o)}
+            aria-label="Toggle navigation"
+          >
+            ☰
+          </button>
+        )}
         <h1 onClick={resetToHome} style={{ cursor: 'pointer' }}>LegacyCode</h1>
         <span className="site-subtitle">U.S. Code &amp; CFR — changes over time</span>
         {selectedTitle && (
@@ -267,12 +277,18 @@ export default function App() {
         {/* ── Title view ────────────────────────────── */}
         {view === 'title' && (
           <>
+            {/* Mobile overlay — tap to close nav */}
+            {mobileNavOpen && (
+              <div className="mobile-nav-overlay" onClick={() => setMobileNavOpen(false)} />
+            )}
             <NavTree
               structure={structure}
               titleNum={selectedTitle?.num}
               activePath={activeSection?.identifier || activeSection?.label}
-              onSelect={handleSelectSection}
+              onSelect={(node) => { handleSelectSection(node); setMobileNavOpen(false) }}
               corpus={corpus}
+              mobileOpen={mobileNavOpen}
+              onMobileClose={() => setMobileNavOpen(false)}
             />
 
             <main className="section-area">
