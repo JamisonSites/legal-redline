@@ -59,20 +59,25 @@ function USCContent({ html }) {
   // Extract body content and remove nav/header elements
   const bodyMatch = html.match(/<body[^>]*>([\s\S]*)<\/body>/i)
   let body = bodyMatch ? bodyMatch[1] : html
-  // Remove GovInfo navigation wrappers (header/footer divs with known class patterns)
+
+  // Remove GovInfo navigation chrome
   body = body
     .replace(/<nav[\s\S]*?<\/nav>/gi, '')
     .replace(/<header[\s\S]*?<\/header>/gi, '')
     .replace(/<footer[\s\S]*?<\/footer>/gi, '')
-    // Remove inline style blocks
     .replace(/<style[\s\S]*?<\/style>/gi, '')
-    // Remove script blocks
     .replace(/<script[\s\S]*?<\/script>/gi, '')
+
+  // Fix double-encoded entities: GovInfo sometimes returns &amp;ndash; &amp;sect; etc.
+  // One decode pass converts &amp;ENTITY; → &ENTITY; so the browser renders the symbol.
+  body = body.replace(/&amp;([a-zA-Z]+;)/g, '&$1')
+  // Also fix double-encoded numeric entities: &amp;#NNN; → &#NNN;
+  body = body.replace(/&amp;(#\d+;)/g, '&$1')
+  body = body.replace(/&amp;(#x[0-9a-fA-F]+;)/g, '&$1')
 
   return (
     <div
       className="usc-content"
-      // We trust GovInfo HTML (US government source); sanitise only style/script
       dangerouslySetInnerHTML={{ __html: body }}
     />
   )

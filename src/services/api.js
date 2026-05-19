@@ -409,27 +409,50 @@ export function uscGranuleForYear(granuleId, year) {
   return granuleId.replace(/^USCODE-\d{4}/, `USCODE-${year}`)
 }
 
-// Strip GovInfo HTML to plain text suitable for diffing
+// Strip GovInfo HTML to plain text suitable for diffing.
+// Uses DOMParser so the browser decodes ALL entities (named + numeric + hex)
+// including &ndash; → –, &sect; → §, &mdash; → —, etc.
 export function htmlToText(html) {
-  return html
+  // First strip style/script blocks so their text content isn't included
+  const stripped = html
     .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
     .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
-    .replace(/<[^>]+>/g, ' ')
-    .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
-    .replace(/&nbsp;/g, ' ').replace(/&#(\d+);/g, (_, n) => String.fromCharCode(+n))
-    .replace(/\s{2,}/g, '\n')
-    .trim()
+  // Parse as HTML — textContent gives fully-decoded plain text
+  try {
+    const doc = new DOMParser().parseFromString(stripped, 'text/html')
+    return (doc.body?.textContent ?? '').replace(/\s{2,}/g, '\n').trim()
+  } catch {
+    // Fallback for any edge case: manual decode of the most common entities
+    return stripped
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/&amp;/g,   '&')  .replace(/&lt;/g,    '<')  .replace(/&gt;/g,    '>')
+      .replace(/&nbsp;/g,  ' ')  .replace(/&ndash;/g, '–')  .replace(/&mdash;/g, '—')
+      .replace(/&sect;/g,  '§')  .replace(/&para;/g,  '¶')  .replace(/&copy;/g,  '©')
+      .replace(/&reg;/g,   '®')  .replace(/&trade;/g, '™')  .replace(/&hellip;/g,'…')
+      .replace(/&lsquo;/g, '‘').replace(/&rsquo;/g, '’')
+      .replace(/&ldquo;/g, '“').replace(/&rdquo;/g, '”')
+      .replace(/&bull;/g,  '•')  .replace(/&middot;/g,'·')
+      .replace(/&#(\d+);/gi,      (_, n)  => String.fromCharCode(+n))
+      .replace(/&#x([0-9a-f]+);/gi,(_, h) => String.fromCharCode(parseInt(h, 16)))
+      .replace(/\s{2,}/g, '\n').trim()
+  }
 }
 
 // ── Shared Utilities ─────────────────────────────────
 
 // Convert CFR XML to plain text for diffing
 export function xmlToText(xml) {
-  return xml
-    .replace(/<\?xml[^>]*>/g, '')
-    .replace(/<[^>]+>/g, ' ')
-    .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
-    .replace(/&nbsp;/g, ' ').replace(/\s{2,}/g, '\n').trim()
+  try {
+    const doc = new DOMParser().parseFromString(xml, 'text/xml')
+    return (doc.documentElement?.textContent ?? '').replace(/\s{2,}/g, '\n').trim()
+  } catch {
+    return xml
+      .replace(/<\?xml[^>]*>/g, '').replace(/<[^>]+>/g, ' ')
+      .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+      .replace(/&nbsp;/g, ' ').replace(/&ndash;/g, '–').replace(/&mdash;/g, '—')
+      .replace(/&sect;/g, '§').replace(/&#(\d+);/gi, (_, n) => String.fromCharCode(+n))
+      .replace(/\s{2,}/g, '\n').trim()
+  }
 }
 
 // Convert CFR XML to structured paragraphs with preserved headings
