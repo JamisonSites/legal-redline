@@ -86,7 +86,7 @@ function GroupView({ node, onSelectSection }) {
 
 // ── App root ─────────────────────────────────────────────
 export default function App() {
-  const [corpus, setCorpus]               = useState('cfr')      // 'cfr' | 'usc'
+  const [corpus, setCorpus]               = useState('usc')      // 'usc' | 'cfr'
   const [view, setView]                   = useState('browse')   // 'browse' | 'title'
   const [selectedTitle, setSelectedTitle] = useState(null)
   const [structure, setStructure]         = useState(null)
@@ -219,7 +219,7 @@ export default function App() {
   return (
     <div className="app-shell">
       <header className="site-header">
-        <h1 onClick={resetToHome} style={{ cursor: 'pointer' }}>Legal Red Line</h1>
+        <h1 onClick={resetToHome} style={{ cursor: 'pointer' }}>LegacyCode</h1>
         <span className="site-subtitle">U.S. Code &amp; CFR — changes over time</span>
         {selectedTitle && (
           <span className="site-title-label" onClick={resetToTitle} style={{ cursor: 'pointer' }} title="Back to title overview">
@@ -232,33 +232,33 @@ export default function App() {
         {/* ── Browse view ───────────────────────────── */}
         {view === 'browse' && (
           <main className="main-content">
-            {/* Corpus tabs */}
+            {/* Corpus tabs — USC first */}
             <div className="corpus-tabs">
-              <button
-                className={`corpus-tab ${corpus === 'cfr' ? 'active' : ''}`}
-                onClick={() => switchCorpus('cfr')}
-              >
-                Code of Federal Regulations (CFR)
-              </button>
               <button
                 className={`corpus-tab ${corpus === 'usc' ? 'active' : ''}`}
                 onClick={() => switchCorpus('usc')}
               >
                 U.S. Code (USC)
               </button>
+              <button
+                className={`corpus-tab ${corpus === 'cfr' ? 'active' : ''}`}
+                onClick={() => switchCorpus('cfr')}
+              >
+                Code of Federal Regulations (CFR)
+              </button>
             </div>
 
-            {corpus === 'cfr' ? (
-              <>
-                <h2>Code of Federal Regulations — Select a Title</h2>
-                <p className="subtitle">Pick any title to browse sections and compare changes over time.</p>
-                <TitleBrowser onSelect={handleSelectCFRTitle} />
-              </>
-            ) : (
+            {corpus === 'usc' ? (
               <>
                 <h2>United States Code — Select a Title</h2>
                 <p className="subtitle">Browse any of the 54 USC titles and compare annual editions side-by-side.</p>
                 <USCTitleBrowser onSelect={handleSelectUSCTitle} />
+              </>
+            ) : (
+              <>
+                <h2>Code of Federal Regulations — Select a Title</h2>
+                <p className="subtitle">Pick any title to browse sections and compare changes over time.</p>
+                <TitleBrowser onSelect={handleSelectCFRTitle} />
               </>
             )}
           </main>
@@ -349,9 +349,9 @@ export default function App() {
       </div>
 
       <footer className="site-footer">
+        LegacyCode · USC data: <a href="https://api.govinfo.gov" target="_blank" rel="noreferrer">GovInfo API</a> ·
         CFR data: <a href="https://www.ecfr.gov/developers/documentation/api/v1" target="_blank" rel="noreferrer">eCFR Versioner API</a> ·
-        USC data: <a href="https://api.govinfo.gov" target="_blank" rel="noreferrer">GovInfo API</a> ·
-        Public domain, no key required.
+        Public domain
       </footer>
     </div>
   )
