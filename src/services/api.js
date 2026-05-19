@@ -118,14 +118,21 @@ let _uscPackageCache = null
 
 async function _fetchUSCPackages() {
   if (_uscPackageCache) return _uscPackageCache
-  // Page 1 — no offsetMark needed for first page (GovInfo defaults to start)
-  const r1   = await fetch(`${GOVINFO_BASE}/collections/USCODE?pageSize=1000&api_key=${GOVINFO_KEY}`)
+  // GovInfo collections endpoint requires lastModifiedStartDate in the path.
+  // Use 1994-01-01 to capture all USCODE editions ever published electronically.
+  const url = `${GOVINFO_BASE}/collections/USCODE/1994-01-01T00:00:00Z/?offsetMark=*&pageSize=1000&api_key=${GOVINFO_KEY}`
+  console.log('[USC] fetching collections:', url)
+  const r1   = await fetch(url)
+  console.log('[USC] collections status:', r1.status)
   const d1   = await r1.json()
+  console.log('[USC] collections keys:', Object.keys(d1), 'count:', d1.count)
   const pkgs = [...(d1.packages || [])]
   // Page 2 using the cursor GovInfo returns, if present
   if (d1.nextPage) {
     try {
-      const r2 = await fetch(`${d1.nextPage}&api_key=${GOVINFO_KEY}`)
+      // nextPage already contains the full URL with offsetMark; just add the api_key
+      const nextUrl = d1.nextPage.includes('api_key') ? d1.nextPage : `${d1.nextPage}&api_key=${GOVINFO_KEY}`
+      const r2 = await fetch(nextUrl)
       const d2 = await r2.json()
       pkgs.push(...(d2.packages || []))
     } catch { /* best-effort */ }
@@ -188,8 +195,8 @@ export function buildUSCTree(titleNum, titleName, granules) {
 // Tries the /granules endpoint first; if that comes back empty, falls
 // back to the GovInfo search API which indexes section-level content.
 export async function getUSCGranules(packageId) {
-  // ── Strategy 1: /granules endpoint (no offsetMark — defaults to first page) ──
-  const granulesUrl = `${GOVINFO_BASE}/packages/${packageId}/granules?pageSize=500&api_key=${GOVINFO_KEY}`
+  // ── Strategy 1: /granules endpoint (offsetMark=* is required by GovInfo API) ──
+  const granulesUrl = `${GOVINFO_BASE}/packages/${packageId}/granules?offsetMark=*&pageSize=500&api_key=${GOVINFO_KEY}`
   console.log('[USC] fetching granules:', granulesUrl)
   const res = await fetch(granulesUrl)
   console.log('[USC] granules response status:', res.status)
@@ -207,23 +214,36 @@ export async function getUSCGranules(packageId) {
     console.warn('[USC] /granules HTTP', res.status, '— trying search fallback')
   }
 
-  // ── Strategy 2: GovInfo search API (indexes by packageId) ──
-  const searchUrl = `${GOVINFO_BASE}/search?query=packageId%3A${encodeURIComponent(packageId)}&pageSize=500&resultLevel=default&api_key=${GOVINFO_KEY}`
+  // ── Strategy 2: GovInfo search API (POST, indexes by packageId) ──
+  const searchUrl = `${GOVINFO_BASE}/search?api_key=${GOVINFO_KEY}`
   console.log('[USC] trying search fallback:', searchUrl)
-  const sr = await fetch(searchUrl)
-  if (sr.ok) {
-    const sd = await sr.json()
-    console.log('[USC] search response:', sd.count, 'results, keys:', Object.keys(sd))
-    const results = sd.results || []
-    if (results.length > 0) {
-      // Map search results into granule-like shape
-      const granules = results.map(r => ({
-        granuleId: r.packageId || r.id,
-        title:     r.title || '',
-        granuleClass: 'SECTION',
-      }))
-      return { granules, total: sd.count ?? granules.length }
+  try {
+    const sr = await fetch(searchUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        query: `packageId:${packageId}`,
+        pageSize: '500',
+        offsetMark: '*',
+        sorts: [{ field: 'score', sortOrder: 'DESC' }],
+      }),
+    })
+    if (sr.ok) {
+      const sd = await sr.json()
+      console.log('[USC] search response:', sd.count, 'results, keys:', Object.keys(sd))
+      const results = sd.results || []
+      if (results.length > 0) {
+        // Map search results into granule-like shape
+        const granules = results.map(r => ({
+          granuleId: r.granuleId || r.packageId || r.id,
+          title:     r.title || '',
+          granuleClass: 'SECTION',
+        }))
+        return { granules, total: sd.count ?? granules.length }
+      }
     }
+  } catch (e) {
+    console.warn('[USC] search fallback failed:', e.message)
   }
 
   // ── Strategy 3: Give up — return empty, caller shows message ──

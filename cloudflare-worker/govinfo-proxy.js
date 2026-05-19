@@ -39,8 +39,8 @@ export default {
       })
     }
 
-    // Only proxy GET requests
-    if (request.method !== 'GET') {
+    // Only proxy GET and POST requests
+    if (request.method !== 'GET' && request.method !== 'POST') {
       return new Response('Method not allowed', { status: 405 })
     }
 
@@ -49,10 +49,21 @@ export default {
     const govInfoUrl = `${GOVINFO_ORIGIN}${url.pathname}${url.search}`
 
     try {
-      const upstream = await fetch(govInfoUrl, {
-        headers: { 'User-Agent': 'Legal-Red-Line/1.0' },
-        cf: { cacheTtl: 3600, cacheEverything: true },  // cache responses 1 hr
-      })
+      const fetchOptions = {
+        method:  request.method,
+        headers: {
+          'User-Agent':   'Legal-Red-Line/1.0',
+          'Content-Type': request.headers.get('Content-Type') || 'application/json',
+        },
+      }
+      // Forward body for POST requests (search API)
+      if (request.method === 'POST') {
+        fetchOptions.body = await request.text()
+        // POST responses should not be cached (they vary by query body)
+      } else {
+        fetchOptions.cf = { cacheTtl: 3600, cacheEverything: true }
+      }
+      const upstream = await fetch(govInfoUrl, fetchOptions)
 
       // Forward the body and status, add CORS headers
       const response = new Response(upstream.body, {
@@ -78,7 +89,7 @@ function corsHeaders(origin) {
   const allowed = ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0]
   return {
     'Access-Control-Allow-Origin':  allowed,
-    'Access-Control-Allow-Methods': 'GET, OPTIONS',
+    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type',
     'Access-Control-Max-Age':       '86400',
   }
